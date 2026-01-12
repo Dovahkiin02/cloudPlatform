@@ -1,0 +1,39 @@
+
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Deployment Portal (PoC)</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <h1>Deployment Portal (PoC)</h1>
+
+    <div class="card">
+      <label>
+        App:
+        <select id="app">
+          <option value="app-a">app-a</option>
+          <option value="app-b">app-b</option>
+        </select>
+      </label>
+
+      <label>
+        Environment:
+        <select id="env">
+          <option value="dev">dev</option>
+          <option value="prod">prod</option>
+        </select>
+      </label>
+
+      <div class="buttons">
+        <button id="deploy">Deploy</button>
+        <button id="status">Status</button>
+      </div>
+
+      <pre id="out">Ready.</pre>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
