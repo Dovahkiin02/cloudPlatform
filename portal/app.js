@@ -12,6 +12,7 @@ async function deploy() {
   print("Calling /deploy ...");
   const res = await fetch(`${API_BASE}/deploy`, {
     method: "POST",
+    credentials: "include",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ app: appSel.value, env: envSel.value }),
   });
@@ -22,7 +23,7 @@ async function status() {
   print("Calling /status ...");
   const app = encodeURIComponent(appSel.value);
   const env = encodeURIComponent(envSel.value);
-  const res = await fetch(`${API_BASE}/status?app=${app}&env=${env}`);
+  const res = await fetch(`${API_BASE}/status?app=${app}&env=${env}`, { credentials: "include" });
   print(await res.json());
 }
 
