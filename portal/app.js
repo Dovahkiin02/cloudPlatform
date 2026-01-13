@@ -1,14 +1,11 @@
 // --- CONFIG ---
 const API_BASE = "https://deployment-api.manuel-hanifl.workers.dev"; // no trailing slash
-const PORTAL_ORIGIN = location.origin;
 
-// Apps + stages you want to show
 const APPS = [
   { key: "app-a", name: "App A" },
   { key: "app-b", name: "App B" },
 ];
 
-// Stages are "logical" for now (tomorrow you can map dev/prod to branches)
 const STAGES = [
   { key: "dev", name: "Dev" },
   { key: "prod", name: "Prod" },
@@ -29,12 +26,16 @@ function log(msg, obj) {
 }
 
 function badge(status) {
-  // status values you return: OK / ACCEPTED / errors
+  const raw = (status ?? "—").toString().trim().toUpperCase();
+
+  // Treat ACCEPTED as "DEPLOYED" for this PoC UI
+  const isOk = raw === "OK" || raw === "ACCEPTED";
+
   let cls = "wait";
-  let label = status ?? "—";
-  if (label === "OK") cls = "ok";
-  if (label === "ERROR" || label === "ERR") cls = "err";
-  if (label === "ACCEPTED") cls = "wait";
+  if (isOk) cls = "ok";
+  if (raw === "ERROR" || raw === "ERR") cls = "err";
+
+  const label = raw === "ACCEPTED" ? "DEPLOYED" : raw;
 
   return `
     <span class="badge">
@@ -48,11 +49,7 @@ async function apiGetStatus(app, env) {
   const url = `${API_BASE}/status?app=${encodeURIComponent(app)}&env=${encodeURIComponent(env)}`;
   const res = await fetch(url, { credentials: "include" });
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const err = data?.error || `HTTP ${res.status}`;
-    throw new Error(err);
-  }
+  if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
   return data;
 }
 
@@ -64,12 +61,7 @@ async function apiDeploy(app, env) {
     body: JSON.stringify({ app, env }),
   });
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok && res.status !== 202) {
-    const err = data?.error || `HTTP ${res.status}`;
-    throw new Error(err);
-  }
-  await refreshOne(app, env);
+  if (!res.ok && res.status !== 202) throw new Error(data?.error || `HTTP ${res.status}`);
   return data;
 }
 
@@ -82,15 +74,15 @@ function renderTable() {
 
   for (const app of APPS) {
     for (const stage of STAGES) {
-      const id = rowId(app.key, stage.key);
       const tr = document.createElement("tr");
-      tr.id = id;
+      tr.id = rowId(app.key, stage.key);
 
       tr.innerHTML = `
         <td><strong>${app.name}</strong><div style="color: rgba(255,255,255,.55); font-size: 12px;">${app.key}</div></td>
         <td>${stage.name}<div style="color: rgba(255,255,255,.55); font-size: 12px;">${stage.key}</div></td>
         <td class="col-status">${badge("—")}</td>
         <td class="col-url" style="color: rgba(255,255,255,.55);">—</td>
+        <td class="col-commit" style="color: rgba(255,255,255,.55); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">—</td>
         <td class="right">
           <div class="actions">
             <button class="btn btn-secondary btn-status">Status</button>
@@ -114,21 +106,24 @@ function setRowLoading(app, env, isLoading) {
   const tr = document.getElementById(rowId(app, env));
   if (!tr) return;
   for (const btn of tr.querySelectorAll("button")) btn.disabled = isLoading;
-  const statusCell = tr.querySelector(".col-status");
-  if (isLoading) statusCell.innerHTML = badge("ACCEPTED");
+  if (isLoading) tr.querySelector(".col-status").innerHTML = badge("ACCEPTED");
 }
 
-function setRowStatus(app, env, status, url) {
+function setRowStatus(app, env, status, url, commit) {
   const tr = document.getElementById(rowId(app, env));
   if (!tr) return;
-  tr.querySelector(".col-status").innerHTML = badge(status);
-  const urlCell = tr.querySelector(".col-url");
 
+  tr.querySelector(".col-status").innerHTML = badge(status);
+
+  const urlCell = tr.querySelector(".col-url");
   if (url) {
     urlCell.innerHTML = `<a href="${url}" target="_blank" rel="noopener">Open</a><div style="color: rgba(255,255,255,.55); font-size:12px;">${url}</div>`;
   } else {
     urlCell.textContent = "—";
   }
+
+  const commitCell = tr.querySelector(".col-commit");
+  commitCell.textContent = commit ? commit.slice(0, 7) : "—";
 }
 
 async function refreshOne(app, env) {
@@ -136,10 +131,12 @@ async function refreshOne(app, env) {
   try {
     const data = await apiGetStatus(app, env);
     const url = data?.result?.url ?? null;
-    setRowStatus(app, env, data?.status ?? "OK", url);
+    const commit = data?.pages?.commit ?? null;
+
+    setRowStatus(app, env, data?.status ?? "OK", url, commit);
     log(`Status: ${app}/${env}`, data);
   } catch (e) {
-    setRowStatus(app, env, "ERROR", null);
+    setRowStatus(app, env, "ERROR", null, null);
     log(`Status ERROR: ${app}/${env} → ${e.message}`);
   } finally {
     setRowLoading(app, env, false);
@@ -152,10 +149,12 @@ async function deployOne(app, env) {
   try {
     const data = await apiDeploy(app, env);
     const url = data?.result?.url ?? null;
-    setRowStatus(app, env, data?.status ?? "ACCEPTED", url);
+
+    // Deploy response doesn’t include commit; we keep commit cell as-is
+    setRowStatus(app, env, data?.status ?? "ACCEPTED", url, null);
     log(`Deploy: ${app}/${env}`, data);
   } catch (e) {
-    setRowStatus(app, env, "ERROR", null);
+    setRowStatus(app, env, "ERROR", null, null);
     log(`Deploy ERROR: ${app}/${env} → ${e.message}`);
   } finally {
     setRowLoading(app, env, false);
@@ -165,7 +164,6 @@ async function deployOne(app, env) {
 
 async function refreshAll() {
   log("Refreshing all environments...");
-  // run sequentially to keep logs readable
   for (const app of APPS) {
     for (const stage of STAGES) {
       await refreshOne(app.key, stage.key);
@@ -180,7 +178,7 @@ function updateKpis() {
     for (const stage of STAGES) {
       const tr = document.getElementById(rowId(app.key, stage.key));
       const statusText = tr?.querySelector(".badge")?.textContent?.trim() ?? "";
-      if (statusText.includes("OK")) ok++;
+      if (statusText.includes("OK") || statusText.includes("DEPLOYED")) ok++;
       if (statusText.includes("ERROR")) err++;
     }
   }
@@ -190,6 +188,9 @@ function updateKpis() {
 
 // Buttons
 document.getElementById("refreshAll").addEventListener("click", refreshAll);
+document.getElementById("clearLog").addEventListener("click", () => {
+  logEl.textContent = "Activity cleared.\n";
+});
 document.getElementById("openApi").addEventListener("click", () => {
   window.open(`${API_BASE}/status?app=app-a&env=dev`, "_blank", "noopener");
 });
@@ -197,5 +198,5 @@ document.getElementById("openApi").addEventListener("click", () => {
 // Init
 renderTable();
 updateKpis();
-log(`Portal loaded from ${PORTAL_ORIGIN}`);
+log(`Portal loaded from ${location.origin}`);
 log(`API_BASE = ${API_BASE}`);

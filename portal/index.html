@@ -18,7 +18,8 @@
 
       <div class="topbar-actions">
         <button id="refreshAll" class="btn btn-secondary">Refresh all</button>
-        <button id="openApi" class="btn btn-ghost">API health</button>
+        <button id="clearLog" class="btn btn-secondary">Clear activity</button>
+        <button id="openApi" class="btn btn-ghost">API login</button>
       </div>
     </header>
 
@@ -46,7 +47,7 @@
         <div class="panel-header">
           <h2>Environments</h2>
           <div class="hint">
-            If you see 403, open the API URL once to complete Zero Trust login.
+            If you see 403, click “API login” once and complete Zero Trust OTP.
           </div>
         </div>
 
@@ -58,6 +59,7 @@
                 <th>Stage</th>
                 <th>Status</th>
                 <th>URL</th>
+                <th>Commit</th>
                 <th class="right">Actions</th>
               </tr>
             </thead>
@@ -75,7 +77,7 @@
       </section>
 
       <footer class="footer">
-        <span>Tip: demo flow = Refresh all → Deploy app-a to dev → open URL.</span>
+        <span>Demo flow: API login → Refresh all → Deploy app-a to dev → show commit + URL.</span>
       </footer>
     </main>
 
