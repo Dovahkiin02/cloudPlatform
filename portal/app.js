@@ -69,6 +69,7 @@ async function apiDeploy(app, env) {
     const err = data?.error || `HTTP ${res.status}`;
     throw new Error(err);
   }
+  await refreshOne(app, env);
   return data;
 }
 
