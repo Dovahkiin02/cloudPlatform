@@ -1,38 +1,83 @@
-
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Deployment Portal (PoC)</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Deployment Platform</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <h1>Deployment Portal (PoC)</h1>
-
-    <div class="card">
-      <label>
-        App:
-        <select id="app">
-          <option value="app-a">app-a</option>
-          <option value="app-b">app-b</option>
-        </select>
-      </label>
-
-      <label>
-        Environment:
-        <select id="env">
-          <option value="dev">dev</option>
-          <option value="prod">prod</option>
-        </select>
-      </label>
-
-      <div class="buttons">
-        <button id="deploy">Deploy</button>
-        <button id="status">Status</button>
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">DP</div>
+        <div>
+          <div class="title">Deployment Platform</div>
+          <div class="subtitle">PoC • Cloudflare Pages + Workers + Zero Trust</div>
+        </div>
       </div>
 
-      <pre id="out">Ready.</pre>
-    </div>
+      <div class="topbar-actions">
+        <button id="refreshAll" class="btn btn-secondary">Refresh all</button>
+        <button id="openApi" class="btn btn-ghost">API health</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="cards">
+        <div class="card">
+          <div class="card-kpi" id="kpiApps">—</div>
+          <div class="card-label">Apps</div>
+        </div>
+        <div class="card">
+          <div class="card-kpi" id="kpiStages">—</div>
+          <div class="card-label">Stages</div>
+        </div>
+        <div class="card">
+          <div class="card-kpi" id="kpiOk">—</div>
+          <div class="card-label">Status OK</div>
+        </div>
+        <div class="card">
+          <div class="card-kpi" id="kpiErr">—</div>
+          <div class="card-label">Errors</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Environments</h2>
+          <div class="hint">
+            If you see 403, open the API URL once to complete Zero Trust login.
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table" id="envTable">
+            <thead>
+              <tr>
+                <th>App</th>
+                <th>Stage</th>
+                <th>Status</th>
+                <th>URL</th>
+                <th class="right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="envTbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Activity</h2>
+          <div class="hint">Latest actions and API responses.</div>
+        </div>
+        <pre class="log" id="log">Ready.</pre>
+      </section>
+
+      <footer class="footer">
+        <span>Tip: demo flow = Refresh all → Deploy app-a to dev → open URL.</span>
+      </footer>
+    </main>
 
     <script src="./app.js"></script>
   </body>
