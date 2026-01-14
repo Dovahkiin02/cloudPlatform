@@ -201,7 +201,10 @@ async function refreshOne(app, env) {
   try {
     const data = await apiGetStatus(app, env);
 
-    const url = data?.result?.url ?? null;
+    const baseUrl = data?.result?.url ?? null;
+    const pagesUrl = data?.pages?.deploymentUrl ?? null;
+
+    const url = env === "dev" ? (pagesUrl || baseUrl) : (baseUrl || pagesUrl);
     const commit = data?.pages?.commit ?? null;
     const message = data?.pages?.message ?? null;
 
