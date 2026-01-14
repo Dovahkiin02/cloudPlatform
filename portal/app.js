@@ -1,7 +1,4 @@
-// --------------------
-// CONFIG
-// --------------------
-const API_BASE = "https://deployment-api.manuel-hanifl.workers.dev"; // no trailing slash
+const API_BASE = "https://deployment-api.manuel-hanifl.workers.dev";
 
 const APPS = [
   { key: "app-a", name: "App A" },
@@ -13,9 +10,6 @@ const STAGES = [
   { key: "prod", name: "Prod" },
 ];
 
-// --------------------
-// DOM
-// --------------------
 const tbody = document.getElementById("envTbody");
 const logEl = document.getElementById("log");
 
@@ -24,9 +18,6 @@ const kpiStages = document.getElementById("kpiStages");
 const kpiHealthy = document.getElementById("kpiHealthy");
 const kpiIssues = document.getElementById("kpiIssues");
 
-// --------------------
-// Utils
-// --------------------
 function nowTime() {
   return new Date().toLocaleTimeString();
 }
@@ -45,19 +36,28 @@ function shortSha(sha) {
 function badge(status) {
   const raw = (status ?? "—").toString().trim().toUpperCase();
 
-  // Treat ACCEPTED as a "successful deploy request" for PoC UI
-  const isOk = raw === "OK" || raw === "ACCEPTED";
+  if (raw === "ACCEPTED" || raw === "DEPLOYING") {
+    return `
+      <span class="badge">
+        <span class="dot wait"></span>
+        DEPLOYING
+      </span>
+    `;
+  }
 
-  let cls = "wait";
-  if (isOk) cls = "ok";
-  if (raw === "ERROR" || raw === "ERR") cls = "err";
-
-  const label = raw === "ACCEPTED" ? "DEPLOYED" : raw;
+  if (raw === "ERROR" || raw === "ERR") {
+    return `
+      <span class="badge">
+        <span class="dot err"></span>
+        ERROR
+      </span>
+    `;
+  }
 
   return `
     <span class="badge">
-      <span class="dot ${cls}"></span>
-      ${label}
+      <span class="dot ok"></span>
+      ${raw}
     </span>
   `;
 }
@@ -66,9 +66,6 @@ function rowId(app, env) {
   return `row-${app}-${env}`;
 }
 
-// --------------------
-// API
-// --------------------
 async function apiGetStatus(app, env) {
   const url = `${API_BASE}/status?app=${encodeURIComponent(app)}&env=${encodeURIComponent(env)}`;
   const res = await fetch(url, { credentials: "include" });
@@ -89,9 +86,6 @@ async function apiDeploy(app, env) {
   return data;
 }
 
-// --------------------
-// Rendering
-// --------------------
 function renderTable() {
   tbody.innerHTML = "";
 
@@ -164,7 +158,6 @@ function setRowData(app, env, { status, url, commit, message, updatedAt }) {
   const commitCell = tr.querySelector(".col-commit");
   if (commit) {
     const sha = shortSha(commit);
-    // Put commit message as tooltip if present
     commitCell.innerHTML = message
       ? `<span title="${escapeHtml(message)}">${sha}</span>`
       : `${sha}`;
@@ -201,9 +194,6 @@ function updateKpis() {
   kpiIssues.textContent = `${issues}`;
 }
 
-// --------------------
-// Data loading
-// --------------------
 async function refreshOne(app, env) {
   const tr = document.getElementById(rowId(app, env));
   if (!tr) return;
@@ -215,11 +205,22 @@ async function refreshOne(app, env) {
     const commit = data?.pages?.commit ?? null;
     const message = data?.pages?.message ?? null;
 
-    // If Pages API fails, show "OK" but commit stays —
-    const status = data?.pages?.error ? "OK" : (data?.status ?? "OK");
+    const stageStatusRaw = data?.pages?.stageStatus ?? null;
+    const stageStatus = stageStatusRaw ? String(stageStatusRaw).toLowerCase() : null;
+
+    const isDeploying =
+      stageStatus && ["queued", "in_progress", "building", "initializing"].includes(stageStatus);
+
+    const pagesError = data?.pages?.error ?? null;
+
+    const computedStatus = pagesError
+      ? "OK"
+      : isDeploying
+        ? "DEPLOYING"
+        : (data?.status ?? "OK");
 
     setRowData(app, env, {
-      status,
+      status: computedStatus,
       url,
       commit,
       message,
@@ -256,18 +257,16 @@ async function deployOne(app, env) {
     const data = await apiDeploy(app, env);
     const url = data?.result?.url ?? null;
 
-    // Immediately reflect deploy request accepted
     setRowData(app, env, {
-      status: data?.status ?? "ACCEPTED",
+      status: "DEPLOYING",
       url,
-      commit: null, // will be refreshed right after
+      commit: null,
       message: null,
       updatedAt: nowTime(),
     });
 
     log(`Deploy request: ${app}/${env}`, data);
 
-    // After deploying, refresh so commit is shown (dashboard rule: commit always displayed if available)
     await refreshOne(app, env);
   } catch (e) {
     setRowData(app, env, {
@@ -284,9 +283,6 @@ async function deployOne(app, env) {
   }
 }
 
-// --------------------
-// Buttons
-// --------------------
 document.getElementById("refreshAll").addEventListener("click", refreshAll);
 document.getElementById("clearLog").addEventListener("click", () => {
   logEl.textContent = "Activity cleared.\n";
@@ -295,13 +291,9 @@ document.getElementById("openApi").addEventListener("click", () => {
   window.open(`${API_BASE}/status?app=app-a&env=dev`, "_blank", "noopener");
 });
 
-// --------------------
-// Init
-// --------------------
 renderTable();
 updateKpis();
 log(`Portal loaded from ${location.origin}`);
 log(`API_BASE = ${API_BASE}`);
 
-// Auto-refresh on load (dashboard behavior)
 refreshAll();
