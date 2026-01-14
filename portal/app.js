@@ -1,4 +1,6 @@
-// --- CONFIG ---
+// --------------------
+// CONFIG
+// --------------------
 const API_BASE = "https://deployment-api.manuel-hanifl.workers.dev"; // no trailing slash
 
 const APPS = [
@@ -11,24 +13,39 @@ const STAGES = [
   { key: "prod", name: "Prod" },
 ];
 
+// --------------------
+// DOM
+// --------------------
 const tbody = document.getElementById("envTbody");
 const logEl = document.getElementById("log");
 
 const kpiApps = document.getElementById("kpiApps");
 const kpiStages = document.getElementById("kpiStages");
-const kpiOk = document.getElementById("kpiOk");
-const kpiErr = document.getElementById("kpiErr");
+const kpiHealthy = document.getElementById("kpiHealthy");
+const kpiIssues = document.getElementById("kpiIssues");
+
+// --------------------
+// Utils
+// --------------------
+function nowTime() {
+  return new Date().toLocaleTimeString();
+}
 
 function log(msg, obj) {
-  const stamp = new Date().toLocaleTimeString();
+  const stamp = nowTime();
   const line = obj ? `${msg}\n${JSON.stringify(obj, null, 2)}` : msg;
   logEl.textContent = `[${stamp}] ${line}\n\n` + logEl.textContent;
+}
+
+function shortSha(sha) {
+  if (!sha) return null;
+  return sha.length > 7 ? sha.slice(0, 7) : sha;
 }
 
 function badge(status) {
   const raw = (status ?? "—").toString().trim().toUpperCase();
 
-  // Treat ACCEPTED as "DEPLOYED" for this PoC UI
+  // Treat ACCEPTED as a "successful deploy request" for PoC UI
   const isOk = raw === "OK" || raw === "ACCEPTED";
 
   let cls = "wait";
@@ -45,6 +62,13 @@ function badge(status) {
   `;
 }
 
+function rowId(app, env) {
+  return `row-${app}-${env}`;
+}
+
+// --------------------
+// API
+// --------------------
 async function apiGetStatus(app, env) {
   const url = `${API_BASE}/status?app=${encodeURIComponent(app)}&env=${encodeURIComponent(env)}`;
   const res = await fetch(url, { credentials: "include" });
@@ -65,10 +89,9 @@ async function apiDeploy(app, env) {
   return data;
 }
 
-function rowId(app, env) {
-  return `row-${app}-${env}`;
-}
-
+// --------------------
+// Rendering
+// --------------------
 function renderTable() {
   tbody.innerHTML = "";
 
@@ -78,20 +101,35 @@ function renderTable() {
       tr.id = rowId(app.key, stage.key);
 
       tr.innerHTML = `
-        <td><strong>${app.name}</strong><div style="color: rgba(255,255,255,.55); font-size: 12px;">${app.key}</div></td>
-        <td>${stage.name}<div style="color: rgba(255,255,255,.55); font-size: 12px;">${stage.key}</div></td>
+        <td>
+          <strong>${app.name}</strong>
+          <div style="color: rgba(255,255,255,.55); font-size: 12px;">${app.key}</div>
+        </td>
+
+        <td>
+          ${stage.name}
+          <div style="color: rgba(255,255,255,.55); font-size: 12px;">${stage.key}</div>
+        </td>
+
         <td class="col-status">${badge("—")}</td>
+
         <td class="col-url" style="color: rgba(255,255,255,.55);">—</td>
-        <td class="col-commit" style="color: rgba(255,255,255,.55); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">—</td>
+
+        <td class="col-commit" style="color: rgba(255,255,255,.55); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">
+          —
+        </td>
+
+        <td class="col-updated" style="color: rgba(255,255,255,.55); font-size: 12px;">
+          —
+        </td>
+
         <td class="right">
           <div class="actions">
-            <button class="btn btn-secondary btn-status">Status</button>
             <button class="btn btn-primary btn-deploy">Deploy</button>
           </div>
         </td>
       `;
 
-      tr.querySelector(".btn-status").addEventListener("click", () => refreshOne(app.key, stage.key));
       tr.querySelector(".btn-deploy").addEventListener("click", () => deployOne(app.key, stage.key));
 
       tbody.appendChild(tr);
@@ -102,14 +140,14 @@ function renderTable() {
   kpiStages.textContent = `${STAGES.length}`;
 }
 
-function setRowLoading(app, env, isLoading) {
+function setRowBusy(app, env, busy) {
   const tr = document.getElementById(rowId(app, env));
   if (!tr) return;
-  for (const btn of tr.querySelectorAll("button")) btn.disabled = isLoading;
-  if (isLoading) tr.querySelector(".col-status").innerHTML = badge("ACCEPTED");
+  tr.querySelector(".btn-deploy").disabled = busy;
+  if (busy) tr.querySelector(".col-status").innerHTML = badge("ACCEPTED");
 }
 
-function setRowStatus(app, env, status, url, commit) {
+function setRowData(app, env, { status, url, commit, message, updatedAt }) {
   const tr = document.getElementById(rowId(app, env));
   if (!tr) return;
 
@@ -117,53 +155,94 @@ function setRowStatus(app, env, status, url, commit) {
 
   const urlCell = tr.querySelector(".col-url");
   if (url) {
-    urlCell.innerHTML = `<a href="${url}" target="_blank" rel="noopener">Open</a><div style="color: rgba(255,255,255,.55); font-size:12px;">${url}</div>`;
+    urlCell.innerHTML = `<a href="${url}" target="_blank" rel="noopener">Open</a>
+      <div style="color: rgba(255,255,255,.55); font-size:12px;">${url}</div>`;
   } else {
     urlCell.textContent = "—";
   }
 
   const commitCell = tr.querySelector(".col-commit");
-  commitCell.textContent = commit ? commit.slice(0, 7) : "—";
+  if (commit) {
+    const sha = shortSha(commit);
+    // Put commit message as tooltip if present
+    commitCell.innerHTML = message
+      ? `<span title="${escapeHtml(message)}">${sha}</span>`
+      : `${sha}`;
+  } else {
+    commitCell.textContent = "—";
+  }
+
+  tr.querySelector(".col-updated").textContent = updatedAt || "—";
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function updateKpis() {
+  let healthy = 0;
+  let issues = 0;
+
+  for (const app of APPS) {
+    for (const stage of STAGES) {
+      const tr = document.getElementById(rowId(app.key, stage.key));
+      const label = tr?.querySelector(".badge")?.textContent?.trim() ?? "";
+      if (label.includes("OK") || label.includes("DEPLOYED")) healthy++;
+      if (label.includes("ERROR")) issues++;
+    }
+  }
+
+  kpiHealthy.textContent = `${healthy}`;
+  kpiIssues.textContent = `${issues}`;
+}
+
+// --------------------
+// Data loading
+// --------------------
 async function refreshOne(app, env) {
-  setRowLoading(app, env, true);
+  const tr = document.getElementById(rowId(app, env));
+  if (!tr) return;
+
   try {
     const data = await apiGetStatus(app, env);
+
     const url = data?.result?.url ?? null;
     const commit = data?.pages?.commit ?? null;
+    const message = data?.pages?.message ?? null;
 
-    setRowStatus(app, env, data?.status ?? "OK", url, commit);
-    log(`Status: ${app}/${env}`, data);
+    // If Pages API fails, show "OK" but commit stays —
+    const status = data?.pages?.error ? "OK" : (data?.status ?? "OK");
+
+    setRowData(app, env, {
+      status,
+      url,
+      commit,
+      message,
+      updatedAt: nowTime(),
+    });
+
+    log(`Status refresh: ${app}/${env}`, data);
   } catch (e) {
-    setRowStatus(app, env, "ERROR", null, null);
+    setRowData(app, env, {
+      status: "ERROR",
+      url: null,
+      commit: null,
+      message: null,
+      updatedAt: nowTime(),
+    });
     log(`Status ERROR: ${app}/${env} → ${e.message}`);
   } finally {
-    setRowLoading(app, env, false);
-    updateKpis();
-  }
-}
-
-async function deployOne(app, env) {
-  setRowLoading(app, env, true);
-  try {
-    const data = await apiDeploy(app, env);
-    const url = data?.result?.url ?? null;
-
-    // Deploy response doesn’t include commit; we keep commit cell as-is
-    setRowStatus(app, env, data?.status ?? "ACCEPTED", url, null);
-    log(`Deploy: ${app}/${env}`, data);
-  } catch (e) {
-    setRowStatus(app, env, "ERROR", null, null);
-    log(`Deploy ERROR: ${app}/${env} → ${e.message}`);
-  } finally {
-    setRowLoading(app, env, false);
     updateKpis();
   }
 }
 
 async function refreshAll() {
-  log("Refreshing all environments...");
+  log("Refreshing all rows...");
   for (const app of APPS) {
     for (const stage of STAGES) {
       await refreshOne(app.key, stage.key);
@@ -171,22 +250,43 @@ async function refreshAll() {
   }
 }
 
-function updateKpis() {
-  let ok = 0;
-  let err = 0;
-  for (const app of APPS) {
-    for (const stage of STAGES) {
-      const tr = document.getElementById(rowId(app.key, stage.key));
-      const statusText = tr?.querySelector(".badge")?.textContent?.trim() ?? "";
-      if (statusText.includes("OK") || statusText.includes("DEPLOYED")) ok++;
-      if (statusText.includes("ERROR")) err++;
-    }
+async function deployOne(app, env) {
+  setRowBusy(app, env, true);
+  try {
+    const data = await apiDeploy(app, env);
+    const url = data?.result?.url ?? null;
+
+    // Immediately reflect deploy request accepted
+    setRowData(app, env, {
+      status: data?.status ?? "ACCEPTED",
+      url,
+      commit: null, // will be refreshed right after
+      message: null,
+      updatedAt: nowTime(),
+    });
+
+    log(`Deploy request: ${app}/${env}`, data);
+
+    // After deploying, refresh so commit is shown (dashboard rule: commit always displayed if available)
+    await refreshOne(app, env);
+  } catch (e) {
+    setRowData(app, env, {
+      status: "ERROR",
+      url: null,
+      commit: null,
+      message: null,
+      updatedAt: nowTime(),
+    });
+    log(`Deploy ERROR: ${app}/${env} → ${e.message}`);
+  } finally {
+    setRowBusy(app, env, false);
+    updateKpis();
   }
-  kpiOk.textContent = `${ok}`;
-  kpiErr.textContent = `${err}`;
 }
 
+// --------------------
 // Buttons
+// --------------------
 document.getElementById("refreshAll").addEventListener("click", refreshAll);
 document.getElementById("clearLog").addEventListener("click", () => {
   logEl.textContent = "Activity cleared.\n";
@@ -195,8 +295,13 @@ document.getElementById("openApi").addEventListener("click", () => {
   window.open(`${API_BASE}/status?app=app-a&env=dev`, "_blank", "noopener");
 });
 
+// --------------------
 // Init
+// --------------------
 renderTable();
 updateKpis();
 log(`Portal loaded from ${location.origin}`);
 log(`API_BASE = ${API_BASE}`);
+
+// Auto-refresh on load (dashboard behavior)
+refreshAll();

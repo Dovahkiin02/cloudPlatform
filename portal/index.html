@@ -12,12 +12,12 @@
         <div class="logo">DP</div>
         <div>
           <div class="title">Deployment Platform</div>
-          <div class="subtitle">PoC • Cloudflare Pages + Workers + Zero Trust</div>
+          <div class="subtitle">Dashboard • Apps • Environments • Deployments</div>
         </div>
       </div>
 
       <div class="topbar-actions">
-        <button id="refreshAll" class="btn btn-secondary">Refresh all</button>
+        <button id="refreshAll" class="btn btn-secondary">Refresh now</button>
         <button id="clearLog" class="btn btn-secondary">Clear activity</button>
         <button id="openApi" class="btn btn-ghost">API login</button>
       </div>
@@ -34,33 +34,34 @@
           <div class="card-label">Stages</div>
         </div>
         <div class="card">
-          <div class="card-kpi" id="kpiOk">—</div>
-          <div class="card-label">Status OK</div>
+          <div class="card-kpi" id="kpiHealthy">—</div>
+          <div class="card-label">Healthy</div>
         </div>
         <div class="card">
-          <div class="card-kpi" id="kpiErr">—</div>
-          <div class="card-label">Errors</div>
+          <div class="card-kpi" id="kpiIssues">—</div>
+          <div class="card-label">Issues</div>
         </div>
       </section>
 
       <section class="panel">
         <div class="panel-header">
-          <h2>Environments</h2>
+          <h2>Deployments</h2>
           <div class="hint">
-            If you see 403, click “API login” once and complete Zero Trust OTP.
+            The dashboard refreshes automatically. If you see 403, click “API login” once and complete Zero Trust OTP.
           </div>
         </div>
 
         <div class="table-wrap">
-          <table class="table" id="envTable">
+          <table class="table">
             <thead>
               <tr>
                 <th>App</th>
                 <th>Stage</th>
                 <th>Status</th>
-                <th>URL</th>
+                <th>Deployed URL</th>
                 <th>Commit</th>
-                <th class="right">Actions</th>
+                <th>Last updated</th>
+                <th class="right">Action</th>
               </tr>
             </thead>
             <tbody id="envTbody"></tbody>
@@ -71,13 +72,13 @@
       <section class="panel">
         <div class="panel-header">
           <h2>Activity</h2>
-          <div class="hint">Latest actions and API responses.</div>
+          <div class="hint">Requests, responses and errors (for debugging + demo).</div>
         </div>
         <pre class="log" id="log">Ready.</pre>
       </section>
 
       <footer class="footer">
-        <span>Demo flow: API login → Refresh all → Deploy app-a to dev → show commit + URL.</span>
+        <span>Demo flow: API login → Refresh now → Deploy app-a to dev → commit updates → open URL.</span>
       </footer>
     </main>
 
