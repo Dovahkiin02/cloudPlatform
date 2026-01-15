@@ -12,40 +12,38 @@
         <div class="logo">DP</div>
         <div>
           <div class="title">Deployment Platform</div>
-          <div class="subtitle">Dashboard • Apps • Environments • Deployments</div>
+          <div class="subtitle">Pick a commit → deploy via release branches</div>
         </div>
       </div>
 
-      <div class="topbar-actions">
-        <button id="refreshAll" class="btn btn-secondary">Refresh now</button>
-        <button id="clearLog" class="btn btn-secondary">Clear activity</button>
-        <button id="openApi" class="btn btn-ghost">API login</button>
+      <div class="top-actions">
+        <button class="btn" id="btnRefresh">Refresh status</button>
+        <button class="btn" id="btnReloadCommits">Reload commits</button>
       </div>
     </header>
 
-    <main class="container">
-      <section class="cards">
-        <div class="card">
-          <div class="card-kpi" id="kpiApps">—</div>
-          <div class="card-label">Apps</div>
-        </div>
-        <div class="card">
-          <div class="card-kpi" id="kpiStages">—</div>
-          <div class="card-label">Stages</div>
-        </div>
-        <div class="card">
-          <div class="card-kpi" id="kpiHealthy">—</div>
-          <div class="card-label">Healthy</div>
-        </div>
-        <div class="card">
-          <div class="card-kpi" id="kpiIssues">—</div>
-          <div class="card-label">Issues</div>
-        </div>
-      </section>
-
+    <main class="wrap">
       <section class="panel">
         <div class="panel-header">
-          <h2>Deployments</h2>
+          <h2>Environments</h2>
+          <div class="kpis">
+            <div class="kpi">
+              <div class="kpi-label">Apps</div>
+              <div class="kpi-value" id="kpiApps">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Stages</div>
+              <div class="kpi-value" id="kpiStages">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Healthy</div>
+              <div class="kpi-value" id="kpiHealthy">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Issues</div>
+              <div class="kpi-value" id="kpiIssues">—</div>
+            </div>
+          </div>
         </div>
 
         <div class="table-wrap">
@@ -55,8 +53,8 @@
                 <th>App</th>
                 <th>Stage</th>
                 <th>Status</th>
-                <th>Deployed URL</th>
-                <th>Commit</th>
+                <th>URL</th>
+                <th>Commit (select)</th>
                 <th>Last updated</th>
                 <th class="right">Action</th>
               </tr>

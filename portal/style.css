@@ -224,3 +224,22 @@ a:hover { text-decoration: underline; }
   .topbar { flex-direction: column; align-items: flex-start; gap: 12px; }
   .topbar-actions { width: 100%; }
 }
+
+.commit-select {
+  width: 100%;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.92);
+  border-radius: 12px;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.commit-select:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
