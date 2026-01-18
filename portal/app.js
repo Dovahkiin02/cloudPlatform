@@ -216,6 +216,14 @@ ${s?.pages?.deploymentUrl ? `
   return row;
 }
 
+function showCommitError(msg) {
+  $("commitError").textContent = msg || "";
+}
+
+function clearCommitError() {
+  $("commitError").textContent = "";
+}
+
 async function refreshOne(appId, envName) {
   try {
     const s = await apiGet(`/status?app=${encodeURIComponent(appId)}&env=${encodeURIComponent(envName)}`);
@@ -273,6 +281,7 @@ function renderCommitSelect(envName) {
 }
 
 async function deploy(appId, envName, commit) {
+  clearCommitError();
   state.pending[appId][envName] = { commit, since: Date.now() };
   renderApps();
 
@@ -314,6 +323,8 @@ function wire() {
     }
   });
 
+  $("commitInput").addEventListener("input", clearCommitError);
+
   $("clearLogBtn").addEventListener("click", () => {
     clearLog();
   });
@@ -348,7 +359,10 @@ function wire() {
     const envName = $("envSelect").value;
     const commit = ($("commitInput").value || "").trim();
 
-    if (!shaRe.test(commit)) return alert("Invalid SHA. Expected 7–40 hex chars.");
+    if (!shaRe.test(commit)) {
+      showCommitError("Invalid commit SHA (expected 7–40 hexadecimal characters).");
+      return;
+    }
 
     try {
       $("deployInputBtn").disabled = true;
