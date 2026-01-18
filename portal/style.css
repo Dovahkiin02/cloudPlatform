@@ -136,3 +136,49 @@ a:hover { text-decoration: underline; }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Global top progress bar */
+.topbar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 3px;
+  width: 100%;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.topbar.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.topbar .bar {
+  height: 100%;
+  width: 35%;
+  border-radius: 999px;
+  background: rgba(45, 212, 191, 0.9);
+  box-shadow: 0 0 18px rgba(45, 212, 191, 0.45);
+  animation: topbar-move 0.9s ease-in-out infinite;
+}
+
+@keyframes topbar-move {
+  0%   { transform: translateX(-40%); width: 22%; }
+  50%  { transform: translateX(140%); width: 42%; }
+  100% { transform: translateX(320%); width: 22%; }
+}
+
+/* Optional: card highlight while refreshing */
+.card.refreshing {
+  outline: 1px solid rgba(45, 212, 191, 0.28);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(45,212,191,0.10) inset;
+}
+
+a.btn.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}

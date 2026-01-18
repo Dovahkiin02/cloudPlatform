@@ -34,14 +34,27 @@ function statusDot(pending, stageStatus) {
   return "warn";
 }
 
-async function pulseButton(btn, fn) {
-  btn.disabled = true;
-  btn.classList.add("busy");
+function isReady(statusObj, pendingObj) {
+  if (pendingObj) return false;
+  const st = String(statusObj?.pages?.stageStatus || "").toLowerCase();
+  return st === "success";
+}
+
+function setRefreshing(on) {
+  const topbar = document.getElementById("topbar");
+  if (!topbar) return;
+  topbar.classList.toggle("active", !!on);
+
+  // highlight main cards (optional)
+  document.querySelectorAll(".card").forEach((c) => c.classList.toggle("refreshing", !!on));
+}
+
+async function runWithRefreshing(fn) {
+  setRefreshing(true);
   try {
     await fn();
   } finally {
-    btn.classList.remove("busy");
-    btn.disabled = false;
+    setRefreshing(false);
   }
 }
 
@@ -111,18 +124,20 @@ function renderApps() {
     card.style.background = "rgba(255,255,255,0.04)";
     card.style.borderRadius = "16px";
     card.style.marginBottom = "12px";
+    const prodStatus = state.status?.[app.id]?.prod;
+    const prodPending = state.pending?.[app.id]?.prod;
+    const canVisit = isReady(prodStatus, prodPending);
 
     const hd = document.createElement("div");
     hd.className = "hd";
     hd.innerHTML = `
-      <div>
-        <div class="title">${app.name}</div>
-        <div class="muted">Pages project for a deployable static app</div>
-      </div>
-      <div class="row" style="gap:8px;">
-        <a class="btn small ghost" href="${app.prodUrl}" target="_blank" rel="noopener">Visit</a>
-        <button class="btn small" data-refresh="${app.id}">Refresh</button>
-      </div>
+<a class="btn small ghost ${canVisit ? "" : "disabled"}"
+   ${canVisit ? `href="${app.prodUrl}"` : ""}
+   target="_blank" rel="noopener"
+   aria-disabled="${canVisit ? "false" : "true"}"
+   title="${canVisit ? "Open deployed page" : "Page not ready yet (deployment running)"}">
+  Visit Page
+</a>
     `;
 
     const bd = document.createElement("div");
@@ -138,11 +153,16 @@ function renderApps() {
   root.querySelectorAll("[data-refresh]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const appId = btn.getAttribute("data-refresh");
-      await pulseButton(btn, async () => {
-        await refreshOne(appId, "dev");
-        await refreshOne(appId, "prod");
-        renderApps();
-      });
+      btn.disabled = true;
+      try {
+        await runWithRefreshing(async () => {
+          await refreshOne(appId, "dev");
+          await refreshOne(appId, "prod");
+          renderApps();
+        });
+      } finally {
+        btn.disabled = false;
+      }
     });
   });
 }
@@ -280,11 +300,16 @@ async function deploy(appId, envName, commit) {
 // =========================
 function wire() {
   $("refreshAllBtn").addEventListener("click", async () => {
-    await pulseButton($("refreshAllBtn"), async () => {
-      await refreshAll();
-      renderApps();
-    });
-    logItem("Refreshed", "Refreshed status for all apps/environments.");
+    $("refreshAllBtn").disabled = true;
+    try {
+      await runWithRefreshing(async () => {
+        await refreshAll();
+        renderApps();
+      });
+      logItem("Refreshed", "Refreshed status for all apps/environments.");
+    } finally {
+      $("refreshAllBtn").disabled = false;
+    }
   });
 
   $("clearLogBtn").addEventListener("click", () => {
