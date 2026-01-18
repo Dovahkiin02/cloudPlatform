@@ -330,6 +330,7 @@ function wire() {
   });
 
   $("envSelect").addEventListener("change", async () => {
+    const envName = $("envSelect").value;
     await loadCommits(envName);
     renderCommitSelect(envName);
   });
