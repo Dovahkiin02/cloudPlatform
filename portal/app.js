@@ -316,7 +316,6 @@ function wire() {
 
   $("clearLogBtn").addEventListener("click", () => {
     clearLog();
-    logItem("Activity cleared", "Local activity log was cleared.");
   });
 
   $("envSelect").addEventListener("change", async () => {
