@@ -19,6 +19,9 @@ const kpiHealthy = document.getElementById("kpiHealthy");
 const kpiIssues = document.getElementById("kpiIssues");
 
 document.getElementById("btnRefresh").addEventListener("click", () => refreshAll());
+document.getElementById("btnLogin").addEventListener("click", () => {
+  window.location.href = `${API_BASE}/auth`;
+});
 document.getElementById("btnReloadCommits").addEventListener("click", () => reloadAllCommits());
 
 function nowTime() {

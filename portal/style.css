@@ -123,10 +123,10 @@ body {
 
 .table-wrap { overflow-x: auto; }
 
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
+#.table {
+#  width: 100%;
+#  border-collapse: collapse;
+#}
 
 .table thead th {
   text-align: left;
@@ -242,4 +242,33 @@ a:hover { text-decoration: underline; }
 
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.table {
+  width: 100%;
+  table-layout: fixed; /* key */
+  border-collapse: collapse;
+}
+
+.table th, .table td {
+  vertical-align: middle;
+}
+
+.col-status { width: 110px; }
+.col-url { width: 260px; }
+.col-commit { width: 520px; }
+.col-updated { width: 140px; }
+
+.commit-select {
+  width: 100%;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-current {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
