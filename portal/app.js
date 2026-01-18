@@ -171,6 +171,10 @@ function renderEnvRow(appId, envName, url) {
 
   const commit = s?.pages?.commit || null;
   const stageStatus = s?.pages?.stageStatus || null;
+  const canVisitEnv = isReady(s, p);
+  const visitEnvTitle = canVisitEnv
+    ? "Open deployment (ready)"
+    : "Not ready yet (deployment running)";
 
   const shownCommit = p?.commit ? p.commit : commit;
   const dot = statusDot(!!p, stageStatus);
@@ -187,7 +191,15 @@ function renderEnvRow(appId, envName, url) {
           <span class="mono">${envName}</span>
         </span>
         <span class="tag mono">${shownCommit ? shortSha(shownCommit) : "—"}</span>
-        ${s?.pages?.deploymentUrl ? `<a class="tag" href="${s.pages.deploymentUrl}" target="_blank" rel="noopener">Visit Page</a>` : ``}
+${s?.pages?.deploymentUrl ? `
+  <a class="btnlink ${canVisitEnv ? "" : "disabled"}"
+     ${canVisitEnv ? `href="${s.pages.deploymentUrl}"` : ""}
+     target="_blank" rel="noopener"
+     aria-disabled="${canVisitEnv ? "false" : "true"}"
+     title="${visitEnvTitle}">
+    Visit Page
+  </a>
+` : ``}
       </div>
       <div class="tiny" style="margin-top:8px;">
         URL: <a href="${url}" target="_blank" rel="noopener">${url}</a><br/>
