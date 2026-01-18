@@ -103,7 +103,23 @@ input::placeholder { color: rgba(255,255,255,0.45); }
 a { color: rgba(147,197,253,0.95); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-.log { max-height: 260px; overflow:auto; padding-right: 6px; }
+.split > .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+}
+
+.split > .card .bd {
+  flex: 1;
+  min-height: 0;
+}
+
+.log {
+  height: 100%;
+  max-height: none;
+  overflow: auto;
+  padding-right: 6px;
+}
 .logItem {
   padding: 10px 12px;
   border-radius: 14px;
@@ -137,7 +153,6 @@ a:hover { text-decoration: underline; }
   to { transform: rotate(360deg); }
 }
 
-/* Global top progress bar */
 .topbar {
   position: fixed;
   left: 0;
@@ -171,7 +186,6 @@ a:hover { text-decoration: underline; }
   100% { transform: translateX(320%); width: 22%; }
 }
 
-/* Optional: card highlight while refreshing */
 .card.refreshing {
   outline: 1px solid rgba(45, 212, 191, 0.28);
   box-shadow: 0 12px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(45,212,191,0.10) inset;
@@ -181,4 +195,34 @@ a.btn.disabled {
   opacity: 0.45;
   pointer-events: none;
   cursor: not-allowed;
+}
+
+a.btnlink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  font-weight: 650;
+  font-size: 12px;
+  gap: 8px;
+}
+
+a.btnlink:hover { background: rgba(255,255,255,0.14); }
+
+a.btnlink.disabled {
+  opacity: 0.35;
+  filter: grayscale(0.7);
+  pointer-events: none;
+  cursor: not-allowed;
+  background: rgba(255,255,255,0.04);
+}
+
+a.btnlink.disabled::before {
+  content: "🔒";
+  font-size: 12px;
+  opacity: 0.8;
 }

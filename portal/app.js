@@ -1,6 +1,3 @@
-// =========================
-// CONFIG
-// =========================
 const API_BASE = "https://deployment-api.manuel-hanifl.workers.dev"; // your Worker URL
 
 const APPS = [
@@ -10,9 +7,6 @@ const APPS = [
 
 const shaRe = /^[0-9a-f]{7,40}$/i;
 
-// =========================
-// Helpers
-// =========================
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -27,10 +21,8 @@ function statusDot(pending, stageStatus) {
   if (["queued", "building", "deploying", "initializing", "running"].includes(st)) return "warn";
   if (["failure", "failed", "error"].includes(st)) return "bad";
 
-  // only green when deployment pipeline finished successfully
   if (st === "success") return "ok";
 
-  // unknown / missing -> neutral (use warn or ok; warn is safer)
   return "warn";
 }
 
@@ -45,7 +37,6 @@ function setRefreshing(on) {
   if (!topbar) return;
   topbar.classList.toggle("active", !!on);
 
-  // highlight main cards (optional)
   document.querySelectorAll(".card").forEach((c) => c.classList.toggle("refreshing", !!on));
 }
 
@@ -62,7 +53,24 @@ function setApiError(msg) {
   $("apiErr").textContent = msg ? `API: ${msg}` : "";
 }
 
+function clearLog() {
+  const log = $("log");
+  log.dataset.empty = "true";
+  log.innerHTML = `<div class="tiny" id="emptyLog">No activity yet.</div>`;
+}
+
+function ensureLogNotEmpty() {
+  const log = $("log");
+  if (log.dataset.empty === "true") {
+    log.dataset.empty = "false";
+    const empty = document.getElementById("emptyLog");
+    if (empty) empty.remove();
+  }
+}
+
 function logItem(title, details) {
+  ensureLogNotEmpty();
+
   const el = document.createElement("div");
   el.className = "logItem";
   el.innerHTML = `
@@ -75,13 +83,6 @@ function logItem(title, details) {
   $("log").prepend(el);
 }
 
-function clearLog() {
-  $("log").innerHTML = `<div class="tiny">No activity yet.</div>`;
-}
-
-// =========================
-// API
-// =========================
 async function apiGet(path) {
   const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
   const data = await res.json().catch(() => ({}));
@@ -101,18 +102,12 @@ async function apiPost(path, body) {
   return data;
 }
 
-// =========================
-// State
-// =========================
 const state = {
   status: { "app-a": { dev: null, prod: null }, "app-b": { dev: null, prod: null } },
   pending: { "app-a": { dev: null, prod: null }, "app-b": { dev: null, prod: null } },
   commitsCache: { dev: [], prod: [] },
 };
 
-// =========================
-// Rendering
-// =========================
 function renderApps() {
   const root = $("apps");
   root.innerHTML = "";
@@ -128,15 +123,18 @@ function renderApps() {
     const prodPending = state.pending?.[app.id]?.prod;
     const canVisit = isReady(prodStatus, prodPending);
 
+    const visitLabel = canVisit ? "Open" : "Open (deploying)";
+    const visitTitle = canVisit ? "Open deployed production page" : "Not ready yet (deployment running)";
+
     const hd = document.createElement("div");
     hd.className = "hd";
     hd.innerHTML = `
-<a class="btn small ghost ${canVisit ? "" : "disabled"}"
+<a class="btnlink ${canVisit ? "" : "disabled"}"
    ${canVisit ? `href="${app.prodUrl}"` : ""}
    target="_blank" rel="noopener"
    aria-disabled="${canVisit ? "false" : "true"}"
-   title="${canVisit ? "Open deployed page" : "Page not ready yet (deployment running)"}">
-  Visit Page
+   title="${visitTitle}">
+  ${visitLabel}
 </a>
     `;
 
@@ -206,9 +204,6 @@ function renderEnvRow(appId, envName, url) {
   return row;
 }
 
-// =========================
-// Data
-// =========================
 async function refreshOne(appId, envName) {
   try {
     const s = await apiGet(`/status?app=${encodeURIComponent(appId)}&env=${encodeURIComponent(envName)}`);
@@ -238,7 +233,6 @@ async function loadCommits(envName) {
     state.commitsCache[envName] = data.commits || [];
     return state.commitsCache[envName];
   } catch (e) {
-    // This is the error you currently have — surface it so you can fix it quickly.
     setApiError(e.message);
     state.commitsCache[envName] = [];
     return [];
@@ -279,7 +273,6 @@ async function deploy(appId, envName, commit) {
     `Hook called (HTTP ${resp?.trigger?.httpStatus ?? "?"}). Commit: <span class="mono">${shortSha(resp.commit)}</span>`
   );
 
-  // Poll status to let UI converge
   for (let i = 0; i < 90; i++) {
     await sleep(1200);
     await refreshOne(appId, envName);
@@ -295,9 +288,6 @@ async function deploy(appId, envName, commit) {
   }
 }
 
-// =========================
-// Wiring
-// =========================
 function wire() {
   $("refreshAllBtn").addEventListener("click", async () => {
     $("refreshAllBtn").disabled = true;
