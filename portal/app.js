@@ -384,8 +384,6 @@ function wire() {
   renderApps();
   wire();
 
-  const envName = $("envSelect").value;
-  $("hint").textContent = "Dev deploy uses source branch 'dev' and release branch 'release/dev'.";
   await loadCommits(envName);
   renderCommitSelect(envName);
 })();
