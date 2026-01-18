@@ -371,7 +371,7 @@ function wire() {
       state.pending[appId][envName] = null;
       renderApps();
       logItem("Deploy failed", e.message);
-      alert(`Deploy failed: ${e.message}`);
+      showCommitError(e.message);
     } finally {
       $("deployInputBtn").disabled = false;
     }
