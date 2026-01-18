@@ -20,10 +20,29 @@ function shortSha(sha) { return (sha || "").slice(0, 7); }
 function fmtTime(iso) { if (!iso) return "—"; return new Date(iso).toLocaleString(); }
 
 function statusDot(pending, stageStatus) {
-  const st = (stageStatus || "").toLowerCase();
-  if (pending || st === "building" || st === "queued") return "warn";
-  if (st === "failure" || st === "failed") return "bad";
-  return "ok";
+  const st = String(stageStatus || "").toLowerCase();
+
+  if (pending) return "warn";
+
+  if (["queued", "building", "deploying", "initializing", "running"].includes(st)) return "warn";
+  if (["failure", "failed", "error"].includes(st)) return "bad";
+
+  // only green when deployment pipeline finished successfully
+  if (st === "success") return "ok";
+
+  // unknown / missing -> neutral (use warn or ok; warn is safer)
+  return "warn";
+}
+
+async function pulseButton(btn, fn) {
+  btn.disabled = true;
+  btn.classList.add("busy");
+  try {
+    await fn();
+  } finally {
+    btn.classList.remove("busy");
+    btn.disabled = false;
+  }
 }
 
 function setApiError(msg) {
@@ -119,9 +138,11 @@ function renderApps() {
   root.querySelectorAll("[data-refresh]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const appId = btn.getAttribute("data-refresh");
-      await refreshOne(appId, "dev");
-      await refreshOne(appId, "prod");
-      renderApps();
+      await pulseButton(btn, async () => {
+        await refreshOne(appId, "dev");
+        await refreshOne(appId, "prod");
+        renderApps();
+      });
     });
   });
 }
@@ -148,7 +169,7 @@ function renderEnvRow(appId, envName, url) {
           <span class="mono">${envName}</span>
         </span>
         <span class="tag mono">${shownCommit ? shortSha(shownCommit) : "—"}</span>
-        ${s?.pages?.deploymentUrl ? `<a class="tag" href="${s.pages.deploymentUrl}" target="_blank" rel="noopener">Deployment</a>` : ``}
+        ${s?.pages?.deploymentUrl ? `<a class="tag" href="${s.pages.deploymentUrl}" target="_blank" rel="noopener">Visit Page</a>` : ``}
       </div>
       <div class="tiny" style="margin-top:8px;">
         URL: <a href="${url}" target="_blank" rel="noopener">${url}</a><br/>
@@ -239,13 +260,18 @@ async function deploy(appId, envName, commit) {
   );
 
   // Poll status to let UI converge
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 90; i++) {
     await sleep(1200);
     await refreshOne(appId, envName);
     renderApps();
 
-    const deployed = state.status?.[appId]?.[envName]?.pages?.commit;
-    if (deployed && shortSha(deployed) === shortSha(commit)) break;
+    const s = state.status?.[appId]?.[envName];
+    const deployed = s?.pages?.commit;
+    const st = String(s?.pages?.stageStatus || "").toLowerCase();
+
+    if (deployed && shortSha(deployed) === shortSha(commit) && st === "success") {
+      break;
+    }
   }
 }
 
@@ -254,8 +280,10 @@ async function deploy(appId, envName, commit) {
 // =========================
 function wire() {
   $("refreshAllBtn").addEventListener("click", async () => {
-    await refreshAll();
-    renderApps();
+    await pulseButton($("refreshAllBtn"), async () => {
+      await refreshAll();
+      renderApps();
+    });
     logItem("Refreshed", "Refreshed status for all apps/environments.");
   });
 

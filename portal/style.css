@@ -113,3 +113,26 @@ a:hover { text-decoration: underline; }
 .logItem + .logItem { margin-top: 10px; }
 .tiny { font-size: 12px; color: var(--muted); }
 .right { text-align:right; }
+
+.btn.busy {
+  position: relative;
+  opacity: 0.9;
+}
+
+.btn.busy::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: rgba(255,255,255,0.95);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
