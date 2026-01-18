@@ -384,6 +384,7 @@ function wire() {
   renderApps();
   wire();
 
+  const envName = $("envSelect").value;
   await loadCommits(envName);
   renderCommitSelect(envName);
 })();
