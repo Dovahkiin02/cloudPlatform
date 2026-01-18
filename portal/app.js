@@ -320,11 +320,6 @@ function wire() {
   });
 
   $("envSelect").addEventListener("change", async () => {
-    const envName = $("envSelect").value;
-    $("hint").textContent =
-      envName === "dev"
-        ? "Dev deploy uses source branch 'dev' and release branch 'release/dev'."
-        : "Prod deploy uses source branch 'main' and release branch 'release/main'.";
     await loadCommits(envName);
     renderCommitSelect(envName);
   });
