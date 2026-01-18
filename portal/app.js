@@ -1,321 +1,328 @@
-const API_BASE = "https://deployment-api.manuel-hanifl.workers.dev";
+// =========================
+// CONFIG
+// =========================
+const API_BASE = "https://deployment-api.manuel-hanifl.workers.dev"; // your Worker URL
 
 const APPS = [
-  { key: "app-a", name: "App A" },
-  { key: "app-b", name: "App B" },
+  { id: "app-a", name: "app-a", devUrl: "https://cloudplatform-2ok.pages.dev", prodUrl: "https://cloudplatform-2ok.pages.dev" },
+  { id: "app-b", name: "app-b", devUrl: "https://app-b.pages.dev", prodUrl: "https://app-b.pages.dev" },
 ];
 
-const STAGES = [
-  { key: "dev", name: "Dev" },
-  { key: "prod", name: "Prod" },
-];
+const shaRe = /^[0-9a-f]{7,40}$/i;
 
-const tbody = document.getElementById("envTbody");
-const logEl = document.getElementById("log");
+// =========================
+// Helpers
+// =========================
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const kpiApps = document.getElementById("kpiApps");
-const kpiStages = document.getElementById("kpiStages");
-const kpiHealthy = document.getElementById("kpiHealthy");
-const kpiIssues = document.getElementById("kpiIssues");
+function shortSha(sha) { return (sha || "").slice(0, 7); }
+function fmtTime(iso) { if (!iso) return "—"; return new Date(iso).toLocaleString(); }
 
-document.getElementById("btnRefresh").addEventListener("click", () => refreshAll());
-document.getElementById("btnLogin").addEventListener("click", () => {
-  window.location.href = `${API_BASE}/auth`;
-});
-document.getElementById("btnReloadCommits").addEventListener("click", () => reloadAllCommits());
-
-function nowTime() {
-  return new Date().toLocaleTimeString();
+function statusDot(pending, stageStatus) {
+  const st = (stageStatus || "").toLowerCase();
+  if (pending || st === "building" || st === "queued") return "warn";
+  if (st === "failure" || st === "failed") return "bad";
+  return "ok";
 }
 
-function log(msg, obj) {
-  const stamp = nowTime();
-  const line = obj ? `${msg}\n${JSON.stringify(obj, null, 2)}\n` : `${msg}\n`;
-  logEl.textContent = `[${stamp}] ${line}\n${logEl.textContent}`.slice(0, 25000);
+function setApiError(msg) {
+  $("apiErr").textContent = msg ? `API: ${msg}` : "";
 }
 
-function badge(text) {
-  const t = String(text || "—").toUpperCase();
-  let cls = "badge";
-  if (["OK", "HEALTHY"].includes(t)) cls += " good";
-  else if (["ERROR", "FAILED"].includes(t)) cls += " bad";
-  else if (["DEPLOYING", "ACCEPTED", "BUILDING"].includes(t)) cls += " warn";
-  return `<span class="${cls}">${t}</span>`;
+function logItem(title, details) {
+  const el = document.createElement("div");
+  el.className = "logItem";
+  el.innerHTML = `
+    <div class="row">
+      <div class="title">${title}</div>
+      <div class="tiny mono">${new Date().toLocaleTimeString()}</div>
+    </div>
+    <div class="tiny" style="margin-top:6px;">${details}</div>
+  `;
+  $("log").prepend(el);
 }
 
-function rowId(app, env) {
-  return `row-${app}-${env}`;
+function clearLog() {
+  $("log").innerHTML = `<div class="tiny">No activity yet.</div>`;
 }
 
-async function apiStatus(app, env) {
-  const res = await fetch(`${API_BASE}/status?app=${encodeURIComponent(app)}&env=${encodeURIComponent(env)}`, {
-    credentials: "include",
-  });
+// =========================
+// API
+// =========================
+async function apiGet(path) {
+  const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
   return data;
 }
 
-async function apiCommits(app, env, limit = 12) {
-  const res = await fetch(
-    `${API_BASE}/commits?app=${encodeURIComponent(app)}&env=${encodeURIComponent(env)}&limit=${encodeURIComponent(
-      String(limit)
-    )}`,
-    { credentials: "include" }
-  );
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-  return data;
-}
-
-async function apiDeploy(app, env, commit) {
-  const res = await fetch(`${API_BASE}/deploy`, {
+async function apiPost(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ app, env, commit }),
+    body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok && res.status !== 202) throw new Error(data?.error || `HTTP ${res.status}`);
   return data;
 }
 
-function renderTable() {
-  tbody.innerHTML = "";
+// =========================
+// State
+// =========================
+const state = {
+  status: { "app-a": { dev: null, prod: null }, "app-b": { dev: null, prod: null } },
+  pending: { "app-a": { dev: null, prod: null }, "app-b": { dev: null, prod: null } },
+  commitsCache: { dev: [], prod: [] },
+};
+
+// =========================
+// Rendering
+// =========================
+function renderApps() {
+  const root = $("apps");
+  root.innerHTML = "";
 
   for (const app of APPS) {
-    for (const stage of STAGES) {
-      const tr = document.createElement("tr");
-      tr.id = rowId(app.key, stage.key);
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.boxShadow = "none";
+    card.style.background = "rgba(255,255,255,0.04)";
+    card.style.borderRadius = "16px";
+    card.style.marginBottom = "12px";
 
-      tr.innerHTML = `
-        <td>
-          <strong>${app.name}</strong>
-          <div style="color: rgba(255,255,255,.55); font-size: 12px;">${app.key}</div>
-        </td>
+    const hd = document.createElement("div");
+    hd.className = "hd";
+    hd.innerHTML = `
+      <div>
+        <div class="title">${app.name}</div>
+        <div class="muted">Pages project for a deployable static app</div>
+      </div>
+      <div class="row" style="gap:8px;">
+        <a class="btn small ghost" href="${app.prodUrl}" target="_blank" rel="noopener">Visit</a>
+        <button class="btn small" data-refresh="${app.id}">Refresh</button>
+      </div>
+    `;
 
-        <td>
-          ${stage.name}
-          <div style="color: rgba(255,255,255,.55); font-size: 12px;">${stage.key}</div>
-        </td>
+    const bd = document.createElement("div");
+    bd.className = "bd";
+    bd.appendChild(renderEnvRow(app.id, "dev", app.devUrl));
+    bd.appendChild(renderEnvRow(app.id, "prod", app.prodUrl));
 
-        <td class="col-status">${badge("—")}</td>
-
-        <td class="col-url" style="color: rgba(255,255,255,.55);">—</td>
-
-        <td class="col-commit">
-          <select class="commit-select">
-            <option value="">Loading commits…</option>
-          </select>
-          <div class="commit-current" style="margin-top:6px; color: rgba(255,255,255,.55); font-size:12px;">
-            Deployed: —
-          </div>
-        </td>
-
-        <td class="col-updated" style="color: rgba(255,255,255,.55); font-size: 12px;">
-          —
-        </td>
-
-        <td class="right">
-          <div class="actions">
-            <button class="btn btn-primary btn-deploy">Deploy</button>
-          </div>
-        </td>
-      `;
-
-      tr.querySelector(".btn-deploy").addEventListener("click", () => deployOne(app.key, stage.key));
-      tbody.appendChild(tr);
-    }
+    card.appendChild(hd);
+    card.appendChild(bd);
+    root.appendChild(card);
   }
 
-  kpiApps.textContent = `${APPS.length}`;
-  kpiStages.textContent = `${STAGES.length}`;
-}
-
-function setRowBusy(app, env, busy) {
-  const tr = document.getElementById(rowId(app, env));
-  if (!tr) return;
-  tr.querySelector(".btn-deploy").disabled = busy;
-  tr.querySelector(".commit-select").disabled = busy;
-  if (busy) tr.querySelector(".col-status").innerHTML = badge("ACCEPTED");
-}
-
-function getSelectedCommit(app, env) {
-  const tr = document.getElementById(rowId(app, env));
-  if (!tr) return null;
-  const sel = tr.querySelector(".commit-select");
-  return sel?.value || null;
-}
-
-function setRowData(app, env, { status, url, deployedCommit, deployedMessage, updatedAt }) {
-  const tr = document.getElementById(rowId(app, env));
-  if (!tr) return;
-
-  tr.querySelector(".col-status").innerHTML = badge(status);
-
-  const urlCell = tr.querySelector(".col-url");
-  if (url) {
-    urlCell.innerHTML = `<a href="${url}" target="_blank" rel="noopener">Open</a>
-      <div style="color: rgba(255,255,255,.55); font-size:12px;">${url}</div>`;
-  } else {
-    urlCell.textContent = "—";
-  }
-
-  const commitLabel = deployedCommit ? deployedCommit.slice(0, 7) : "—";
-  const msg = deployedMessage ? ` — ${escapeHtml(deployedMessage)}` : "";
-  tr.querySelector(".commit-current").innerHTML = `Deployed: <span class="mono">${commitLabel}</span>${msg}`;
-
-  tr.querySelector(".col-updated").textContent = updatedAt || "—";
-}
-
-function escapeHtml(str) {
-  return String(str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-async function loadCommitsForRow(app, env) {
-  const tr = document.getElementById(rowId(app, env));
-  if (!tr) return;
-
-  const select = tr.querySelector(".commit-select");
-  select.innerHTML = `<option value="">Loading commits…</option>`;
-  select.disabled = true;
-
-  try {
-    const data = await apiCommits(app, env, 15);
-    const commits = data?.commits || [];
-
-    if (!commits.length) {
-      select.innerHTML = `<option value="">No commits found</option>`;
-      select.disabled = true;
-      return;
-    }
-
-    select.innerHTML = commits
-      .map((c, idx) => {
-        const label = `${c.shortSha} — ${escapeHtml(c.message || "")}`;
-        const selected = idx === 0 ? "selected" : "";
-        return `<option value="${c.sha}" ${selected}>${label}</option>`;
-      })
-      .join("");
-
-    select.disabled = false;
-  } catch (e) {
-    select.innerHTML = `<option value="">Error loading commits</option>`;
-    select.disabled = true;
-    log(`Commits ERROR: ${app}/${env} → ${e.message}`);
-  }
-}
-
-async function reloadAllCommits() {
-  log("Reloading commit lists…");
-  for (const app of APPS) {
-    for (const stage of STAGES) {
-      await loadCommitsForRow(app.key, stage.key);
-    }
-  }
-  log("Commit lists reloaded.");
-}
-
-async function refreshOne(app, env) {
-  const data = await apiStatus(app, env);
-
-  const url = data?.result?.url ?? null;
-  const deployedCommit = data?.pages?.commit ?? null;
-  const deployedMessage = data?.pages?.message ?? null;
-
-  setRowData(app, env, {
-    status: data?.pages?.error ? "ERROR" : "OK",
-    url,
-    deployedCommit,
-    deployedMessage,
-    updatedAt: nowTime(),
+  root.querySelectorAll("[data-refresh]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const appId = btn.getAttribute("data-refresh");
+      await refreshOne(appId, "dev");
+      await refreshOne(appId, "prod");
+      renderApps();
+    });
   });
+}
 
-  return data;
+function renderEnvRow(appId, envName, url) {
+  const s = state.status?.[appId]?.[envName];
+  const p = state.pending?.[appId]?.[envName];
+
+  const commit = s?.pages?.commit || null;
+  const stageStatus = s?.pages?.stageStatus || null;
+
+  const shownCommit = p?.commit ? p.commit : commit;
+  const dot = statusDot(!!p, stageStatus);
+
+  const row = document.createElement("div");
+  row.className = "row";
+  row.style.alignItems = "flex-start";
+
+  row.innerHTML = `
+    <div style="min-width: 0;">
+      <div class="row" style="justify-content:flex-start; gap:10px;">
+        <span class="tag">
+          <span class="dot ${dot}"></span>
+          <span class="mono">${envName}</span>
+        </span>
+        <span class="tag mono">${shownCommit ? shortSha(shownCommit) : "—"}</span>
+        ${s?.pages?.deploymentUrl ? `<a class="tag" href="${s.pages.deploymentUrl}" target="_blank" rel="noopener">Deployment</a>` : ``}
+      </div>
+      <div class="tiny" style="margin-top:8px;">
+        URL: <a href="${url}" target="_blank" rel="noopener">${url}</a><br/>
+        ${p ? `Pending deploy to <span class="mono">${shortSha(p.commit)}</span>…` : `Last: ${fmtTime(s?.pages?.createdOn)}`}
+        ${stageStatus ? ` • stage: <span class="mono">${stageStatus}</span>` : ``}
+        ${s?.pages?.error ? ` • error: <span class="mono">${s.pages.error}</span>` : ``}
+      </div>
+    </div>
+    <div class="right tiny">
+      ${s?.pages?.message ? `<div title="${s.pages.message.replace(/"/g, '&quot;')}">${s.pages.message.slice(0, 42)}${s.pages.message.length > 42 ? "…" : ""}</div>` : `<div>—</div>`}
+    </div>
+  `;
+
+  return row;
+}
+
+// =========================
+// Data
+// =========================
+async function refreshOne(appId, envName) {
+  try {
+    const s = await apiGet(`/status?app=${encodeURIComponent(appId)}&env=${encodeURIComponent(envName)}`);
+    state.status[appId][envName] = s;
+
+    const pending = state.pending[appId][envName];
+    const deployed = s?.pages?.commit || null;
+    if (pending && deployed && shortSha(deployed) === shortSha(pending.commit)) {
+      state.pending[appId][envName] = null;
+    }
+  } catch (e) {
+    state.status[appId][envName] = { status: "OK", pages: { error: e.message } };
+  }
 }
 
 async function refreshAll() {
-  log("Refreshing status for all apps/stages…");
-  let healthy = 0;
-  let issues = 0;
-
   for (const app of APPS) {
-    for (const stage of STAGES) {
-      try {
-        const data = await refreshOne(app.key, stage.key);
-        if (data?.pages?.error) issues++;
-        else healthy++;
-      } catch (e) {
-        issues++;
-        log(`Status ERROR: ${app.key}/${stage.key} → ${e.message}`);
-      }
-    }
+    await refreshOne(app.id, "dev");
+    await refreshOne(app.id, "prod");
   }
-
-  kpiHealthy.textContent = `${healthy}`;
-  kpiIssues.textContent = `${issues}`;
 }
 
-async function deployOne(app, env) {
-  const commit = getSelectedCommit(app, env);
-  if (!commit) {
-    log(`Deploy blocked: no commit selected for ${app}/${env}`);
+async function loadCommits(envName) {
+  setApiError("");
+  try {
+    const data = await apiGet(`/commits?env=${encodeURIComponent(envName)}&limit=12`);
+    state.commitsCache[envName] = data.commits || [];
+    return state.commitsCache[envName];
+  } catch (e) {
+    // This is the error you currently have — surface it so you can fix it quickly.
+    setApiError(e.message);
+    state.commitsCache[envName] = [];
+    return [];
+  }
+}
+
+function renderCommitSelect(envName) {
+  const sel = $("commitSelect");
+  const commits = state.commitsCache[envName] || [];
+  sel.innerHTML = "";
+
+  if (!commits.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No commits loaded (check API/auth)";
+    sel.appendChild(opt);
     return;
   }
 
-  setRowBusy(app, env, true);
-
-  try {
-    const data = await apiDeploy(app, env, commit);
-    log(`Deploy request: ${app}/${env} (commit ${commit.slice(0, 7)})`, data);
-
-    // Immediately show deploying
-    setRowData(app, env, {
-      status: "DEPLOYING",
-      url: data?.result?.url ?? null,
-      deployedCommit: null,
-      deployedMessage: null,
-      updatedAt: nowTime(),
-    });
-
-    // Poll status a few times so you can *see* the commit change
-    for (let i = 0; i < 10; i++) {
-      await new Promise((r) => setTimeout(r, 2500));
-      const st = await apiStatus(app, env);
-      const deployed = st?.pages?.commit;
-
-      // stop early once Pages reports a commit (and ideally it matches selection)
-      if (deployed) {
-        setRowData(app, env, {
-          status: st?.pages?.error ? "ERROR" : "OK",
-          url: st?.result?.url ?? null,
-          deployedCommit: st?.pages?.commit ?? null,
-          deployedMessage: st?.pages?.message ?? null,
-          updatedAt: nowTime(),
-        });
-
-        if (String(deployed).startsWith(commit.slice(0, 7)) || deployed === commit) break;
-      }
-    }
-  } catch (e) {
-    setRowData(app, env, {
-      status: "ERROR",
-      url: null,
-      deployedCommit: null,
-      deployedMessage: e.message,
-      updatedAt: nowTime(),
-    });
-    log(`Deploy ERROR: ${app}/${env} → ${e.message}`);
-  } finally {
-    setRowBusy(app, env, false);
+  for (const c of commits) {
+    const opt = document.createElement("option");
+    opt.value = c.sha;
+    opt.textContent = `${c.short} — ${c.message}`;
+    sel.appendChild(opt);
   }
 }
 
-// Init
-renderTable();
-reloadAllCommits().then(() => refreshAll());
+async function deploy(appId, envName, commit) {
+  state.pending[appId][envName] = { commit, since: Date.now() };
+  renderApps();
+
+  logItem(`Deploy ${appId} → ${envName}`, `Requested commit <span class="mono">${shortSha(commit)}</span>`);
+
+  const resp = await apiPost("/deploy", { app: appId, env: envName, commit });
+
+  logItem(
+    "Triggered deployment",
+    `Hook called (HTTP ${resp?.trigger?.httpStatus ?? "?"}). Commit: <span class="mono">${shortSha(resp.commit)}</span>`
+  );
+
+  // Poll status to let UI converge
+  for (let i = 0; i < 10; i++) {
+    await sleep(1200);
+    await refreshOne(appId, envName);
+    renderApps();
+
+    const deployed = state.status?.[appId]?.[envName]?.pages?.commit;
+    if (deployed && shortSha(deployed) === shortSha(commit)) break;
+  }
+}
+
+// =========================
+// Wiring
+// =========================
+function wire() {
+  $("refreshAllBtn").addEventListener("click", async () => {
+    await refreshAll();
+    renderApps();
+    logItem("Refreshed", "Refreshed status for all apps/environments.");
+  });
+
+  $("clearLogBtn").addEventListener("click", () => {
+    clearLog();
+    logItem("Activity cleared", "Local activity log was cleared.");
+  });
+
+  $("envSelect").addEventListener("change", async () => {
+    const envName = $("envSelect").value;
+    $("hint").textContent =
+      envName === "dev"
+        ? "Dev deploy uses source branch 'dev' and release branch 'release/dev'."
+        : "Prod deploy uses source branch 'main' and release branch 'release/main'.";
+    await loadCommits(envName);
+    renderCommitSelect(envName);
+  });
+
+  $("deployBtn").addEventListener("click", async () => {
+    const appId = $("appSelect").value;
+    const envName = $("envSelect").value;
+    const commit = $("commitSelect").value;
+
+    if (!commit) return alert("Please select a commit.");
+
+    try {
+      $("deployBtn").disabled = true;
+      await deploy(appId, envName, commit);
+    } catch (e) {
+      state.pending[appId][envName] = null;
+      renderApps();
+      logItem("Deploy failed", e.message);
+      alert(`Deploy failed: ${e.message}`);
+    } finally {
+      $("deployBtn").disabled = false;
+    }
+  });
+
+  $("deployInputBtn").addEventListener("click", async () => {
+    const appId = $("appSelect").value;
+    const envName = $("envSelect").value;
+    const commit = ($("commitInput").value || "").trim();
+
+    if (!shaRe.test(commit)) return alert("Invalid SHA. Expected 7–40 hex chars.");
+
+    try {
+      $("deployInputBtn").disabled = true;
+      await deploy(appId, envName, commit);
+    } catch (e) {
+      state.pending[appId][envName] = null;
+      renderApps();
+      logItem("Deploy failed", e.message);
+      alert(`Deploy failed: ${e.message}`);
+    } finally {
+      $("deployInputBtn").disabled = false;
+    }
+  });
+}
+
+(async function main() {
+  clearLog();
+  await refreshAll();
+  renderApps();
+  wire();
+
+  const envName = $("envSelect").value;
+  $("hint").textContent = "Dev deploy uses source branch 'dev' and release branch 'release/dev'.";
+  await loadCommits(envName);
+  renderCommitSelect(envName);
+})();
