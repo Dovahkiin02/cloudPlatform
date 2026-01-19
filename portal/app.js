@@ -224,6 +224,28 @@ function clearCommitError() {
   $("commitError").textContent = "";
 }
 
+async function checkAuth() {
+  try {
+    await apiGet("/");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function setAuthUI(isAuthed) {
+  const dot = document.getElementById("loginDot");
+  const text = document.getElementById("loginText");
+
+  if (isAuthed) {
+    dot.className = "dot ok";
+    text.textContent = "Authenticated";
+  } else {
+    dot.className = "dot warn";
+    text.textContent = "Login";
+  }
+}
+
 async function refreshOne(appId, envName) {
   try {
     const s = await apiGet(`/status?app=${encodeURIComponent(appId)}&env=${encodeURIComponent(envName)}`);
@@ -321,7 +343,13 @@ function wire() {
     } finally {
       $("refreshAllBtn").disabled = false;
     }
+    setAuthUI(await checkAuth());
   });
+
+  $("loginBtn").addEventListener("click", () => {
+    window.open(`${API_BASE}/`, "_blank", "noopener");
+  });
+
 
   $("commitInput").addEventListener("input", clearCommitError);
 
@@ -388,4 +416,5 @@ function wire() {
   const envName = $("envSelect").value;
   await loadCommits(envName);
   renderCommitSelect(envName);
+  checkAuth().then(setAuthUI);
 })();

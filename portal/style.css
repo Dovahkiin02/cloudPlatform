@@ -225,3 +225,12 @@ a.btnlink.disabled {
   color: var(--bad);
   margin-top: 6px;
 }
+
+.pill-btn {
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.pill-btn:hover {
+  background: rgba(255,255,255,0.08);
+}
