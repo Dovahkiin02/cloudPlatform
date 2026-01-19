@@ -316,6 +316,7 @@ async function deploy(appId, envName, commit) {
     `Hook called (HTTP ${resp?.trigger?.httpStatus ?? "?"}). Commit: <span class="mono">${shortSha(resp.commit)}</span>`
   );
 
+  await sleep(30000);
   for (let i = 0; i < 90; i++) {
     await sleep(1200);
     await refreshOne(appId, envName);
