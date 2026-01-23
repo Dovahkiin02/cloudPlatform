@@ -348,7 +348,8 @@ function wire() {
   });
 
   $("loginBtn").addEventListener("click", () => {
-    window.open(`${API_BASE}/`, "_blank", "noopener");
+    const back = encodeURIComponent(window.location.href);
+    window.location.href = `${API_BASE}/?redirect_url=${back}`;
   });
 
 
