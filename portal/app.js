@@ -349,7 +349,7 @@ function wire() {
 
   $("loginBtn").addEventListener("click", () => {
     const back = encodeURIComponent(window.location.href);
-    window.location.href = `${API_BASE}/?redirect_url=${back}`;
+    window.location.href = `${API_BASE}/?return_to=${back}`;
   });
 
 
