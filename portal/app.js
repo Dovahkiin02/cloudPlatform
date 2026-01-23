@@ -330,6 +330,49 @@ async function deploy(appId, envName, commit) {
       break;
     }
   }
+  await refreshHistory();
+}
+
+async function apiHistory({ limit = 50, app = "", env = "" } = {}) {
+  const qs = new URLSearchParams();
+  qs.set("limit", String(limit));
+  if (app) qs.set("app", app);
+  if (env) qs.set("env", env);
+
+  return await apiGet(`/history?${qs.toString()}`);
+}
+
+
+async function refreshHistory() {
+  const data = await apiHistory({ limit: 60 });
+  renderHistory(data.events || []);
+}
+
+function renderHistory(events) {
+  const log = $("log");
+  log.innerHTML = "";
+
+  if (!events.length) {
+    log.innerHTML = `<div class="tiny" id="emptyLog">No history yet.</div>`;
+    return;
+  }
+
+  for (const e of events) {
+    const el = document.createElement("div");
+    el.className = "logItem";
+    el.innerHTML = `
+      <div class="row">
+        <div class="title">${e.type.toUpperCase()} ${e.app} → ${e.env}</div>
+        <div class="tiny mono">${new Date(e.ts).toLocaleString()}</div>
+      </div>
+      <div class="tiny" style="margin-top:6px;">
+        commit: <span class="mono">${shortSha(e.commit || "")}</span>
+        ${e.actor ? ` • by: <span class="mono">${e.actor}</span>` : ``}
+        ${e.result?.hookOk === false ? ` • <span class="mono">hook failed</span>` : ``}
+      </div>
+    `;
+    log.appendChild(el);
+  }
 }
 
 function wire() {
@@ -412,6 +455,7 @@ function wire() {
   clearLog();
   await refreshAll();
   renderApps();
+  await refreshHistory();
   wire();
 
   const envName = $("envSelect").value;
