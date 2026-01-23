@@ -1,7 +1,12 @@
-const API_BASE = "https://deployment-api.manuel-hanifl.workers.dev"; // your Worker URL
+const API_BASE = "https://deployment-api.manuel-hanifl.workers.dev";
 
 const APPS = [
-  { id: "app-a", name: "app-a", devUrl: "https://cloudplatform-2ok.pages.dev", prodUrl: "https://cloudplatform-2ok.pages.dev" },
+  {
+    id: "app-a",
+    name: "app-a",
+    devUrl: "https://cloudplatform-2ok.pages.dev",
+    prodUrl: "https://cloudplatform-2ok.pages.dev",
+  },
   { id: "app-b", name: "app-b", devUrl: "https://app-b.pages.dev", prodUrl: "https://app-b.pages.dev" },
 ];
 
@@ -10,17 +15,15 @@ const shaRe = /^[0-9a-f]{7,40}$/i;
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function shortSha(sha) { return (sha || "").slice(0, 7); }
-function fmtTime(iso) { if (!iso) return "—"; return new Date(iso).toLocaleString(); }
+const shortSha = (sha) => (sha || "").slice(0, 7);
+const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
 
 function statusDot(pending, stageStatus) {
   const st = String(stageStatus || "").toLowerCase();
 
   if (pending) return "warn";
-
   if (["queued", "building", "deploying", "initializing", "running"].includes(st)) return "warn";
   if (["failure", "failed", "error"].includes(st)) return "bad";
-
   if (st === "success") return "ok";
 
   return "warn";
@@ -33,10 +36,10 @@ function isReady(statusObj, pendingObj) {
 }
 
 function setRefreshing(on) {
-  const topbar = document.getElementById("topbar");
+  const topbar = $("topbar");
   if (!topbar) return;
-  topbar.classList.toggle("active", !!on);
 
+  topbar.classList.toggle("active", !!on);
   document.querySelectorAll(".card").forEach((c) => c.classList.toggle("refreshing", !!on));
 }
 
@@ -61,11 +64,11 @@ function clearLog() {
 
 function ensureLogNotEmpty() {
   const log = $("log");
-  if (log.dataset.empty === "true") {
-    log.dataset.empty = "false";
-    const empty = document.getElementById("emptyLog");
-    if (empty) empty.remove();
-  }
+  if (log.dataset.empty !== "true") return;
+
+  log.dataset.empty = "false";
+  const empty = $("emptyLog");
+  if (empty) empty.remove();
 }
 
 function logItem(title, details) {
@@ -80,6 +83,7 @@ function logItem(title, details) {
     </div>
     <div class="tiny" style="margin-top:6px;">${details}</div>
   `;
+
   $("log").prepend(el);
 }
 
@@ -97,6 +101,7 @@ async function apiPost(path, body) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok && res.status !== 202) throw new Error(data?.error || `HTTP ${res.status}`);
   return data;
@@ -113,12 +118,6 @@ function renderApps() {
   root.innerHTML = "";
 
   for (const app of APPS) {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.style.boxShadow = "none";
-    card.style.background = "rgba(255,255,255,0.04)";
-    card.style.borderRadius = "16px";
-    card.style.marginBottom = "12px";
     const prodStatus = state.status?.[app.id]?.prod;
     const prodPending = state.pending?.[app.id]?.prod;
     const canVisit = isReady(prodStatus, prodPending);
@@ -126,16 +125,24 @@ function renderApps() {
     const visitLabel = canVisit ? "Open" : "Open (deploying)";
     const visitTitle = canVisit ? "Open deployed production page" : "Not ready yet (deployment running)";
 
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.boxShadow = "none";
+    card.style.background = "rgba(255,255,255,0.04)";
+    card.style.borderRadius = "16px";
+    card.style.marginBottom = "12px";
+
     const hd = document.createElement("div");
     hd.className = "hd";
     hd.innerHTML = `
-<a class="btnlink ${canVisit ? "" : "disabled"}"
-   ${canVisit ? `href="${app.prodUrl}"` : ""}
-   target="_blank" rel="noopener"
-   aria-disabled="${canVisit ? "false" : "true"}"
-   title="${visitTitle}">
-  ${visitLabel}
-</a>
+      <a class="btnlink ${canVisit ? "" : "disabled"}"
+         ${canVisit ? `href="${app.prodUrl}"` : ""}
+         target="_blank"
+         rel="noopener"
+         aria-disabled="${canVisit ? "false" : "true"}"
+         title="${visitTitle}">
+        ${visitLabel}
+      </a>
     `;
 
     const bd = document.createElement("div");
@@ -147,22 +154,6 @@ function renderApps() {
     card.appendChild(bd);
     root.appendChild(card);
   }
-
-  root.querySelectorAll("[data-refresh]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const appId = btn.getAttribute("data-refresh");
-      btn.disabled = true;
-      try {
-        await runWithRefreshing(async () => {
-          await refreshOne(appId, "dev");
-          await refreshOne(appId, "prod");
-          renderApps();
-        });
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
 }
 
 function renderEnvRow(appId, envName, url) {
@@ -171,13 +162,12 @@ function renderEnvRow(appId, envName, url) {
 
   const commit = s?.pages?.commit || null;
   const stageStatus = s?.pages?.stageStatus || null;
-  const canVisitEnv = isReady(s, p);
-  const visitEnvTitle = canVisitEnv
-    ? "Open deployment (ready)"
-    : "Not ready yet (deployment running)";
 
   const shownCommit = p?.commit ? p.commit : commit;
   const dot = statusDot(!!p, stageStatus);
+
+  const canVisitEnv = isReady(s, p);
+  const visitEnvTitle = canVisitEnv ? "Open deployment (ready)" : "Not ready yet (deployment running)";
 
   const row = document.createElement("div");
   row.className = "row";
@@ -190,26 +180,41 @@ function renderEnvRow(appId, envName, url) {
           <span class="dot ${dot}"></span>
           <span class="mono">${envName}</span>
         </span>
+
         <span class="tag mono">${shownCommit ? shortSha(shownCommit) : "—"}</span>
-${s?.pages?.deploymentUrl ? `
-  <a class="btnlink ${canVisitEnv ? "" : "disabled"}"
-     ${canVisitEnv ? `href="${s.pages.deploymentUrl}"` : ""}
-     target="_blank" rel="noopener"
-     aria-disabled="${canVisitEnv ? "false" : "true"}"
-     title="${visitEnvTitle}">
-    Visit Page
-  </a>
-` : ``}
+
+        ${s?.pages?.deploymentUrl
+      ? `
+              <a class="btnlink ${canVisitEnv ? "" : "disabled"}"
+                 ${canVisitEnv ? `href="${s.pages.deploymentUrl}"` : ""}
+                 target="_blank"
+                 rel="noopener"
+                 aria-disabled="${canVisitEnv ? "false" : "true"}"
+                 title="${visitEnvTitle}">
+                Visit Page
+              </a>
+            `
+      : ""
+    }
       </div>
+
       <div class="tiny" style="margin-top:8px;">
         URL: <a href="${url}" target="_blank" rel="noopener">${url}</a><br/>
-        ${p ? `Pending deploy to <span class="mono">${shortSha(p.commit)}</span>…` : `Last: ${fmtTime(s?.pages?.createdOn)}`}
-        ${stageStatus ? ` • stage: <span class="mono">${stageStatus}</span>` : ``}
-        ${s?.pages?.error ? ` • error: <span class="mono">${s.pages.error}</span>` : ``}
+        ${p
+      ? `Pending deploy to <span class="mono">${shortSha(p.commit)}</span>…`
+      : `Last: ${fmtTime(s?.pages?.createdOn)}`
+    }
+        ${stageStatus ? ` • stage: <span class="mono">${stageStatus}</span>` : ""}
+        ${s?.pages?.error ? ` • error: <span class="mono">${s.pages.error}</span>` : ""}
       </div>
     </div>
+
     <div class="right tiny">
-      ${s?.pages?.message ? `<div title="${s.pages.message.replace(/"/g, '&quot;')}">${s.pages.message.slice(0, 42)}${s.pages.message.length > 42 ? "…" : ""}</div>` : `<div>—</div>`}
+      ${s?.pages?.message
+      ? `<div title="${s.pages.message.replace(/"/g, "&quot;")}">${s.pages.message.slice(0, 42)}${s.pages.message.length > 42 ? "…" : ""
+      }</div>`
+      : `<div>—</div>`
+    }
     </div>
   `;
 
@@ -234,8 +239,8 @@ async function checkAuth() {
 }
 
 function setAuthUI(isAuthed) {
-  const dot = document.getElementById("loginDot");
-  const text = document.getElementById("loginText");
+  const dot = $("loginDot");
+  const text = $("loginText");
 
   if (isAuthed) {
     dot.className = "dot ok";
@@ -253,6 +258,7 @@ async function refreshOne(appId, envName) {
 
     const pending = state.pending[appId][envName];
     const deployed = s?.pages?.commit || null;
+
     if (pending && deployed && shortSha(deployed) === shortSha(pending.commit)) {
       state.pending[appId][envName] = null;
     }
@@ -270,6 +276,7 @@ async function refreshAll() {
 
 async function loadCommits(envName) {
   setApiError("");
+
   try {
     const data = await apiGet(`/commits?env=${encodeURIComponent(envName)}&limit=12`);
     state.commitsCache[envName] = data.commits || [];
@@ -302,46 +309,14 @@ function renderCommitSelect(envName) {
   }
 }
 
-async function deploy(appId, envName, commit) {
-  clearCommitError();
-  state.pending[appId][envName] = { commit, since: Date.now() };
-  renderApps();
-
-  logItem(`Deploy ${appId} → ${envName}`, `Requested commit <span class="mono">${shortSha(commit)}</span>`);
-
-  const resp = await apiPost("/deploy", { app: appId, env: envName, commit });
-
-  logItem(
-    "Triggered deployment",
-    `Hook called (HTTP ${resp?.trigger?.httpStatus ?? "?"}). Commit: <span class="mono">${shortSha(resp.commit)}</span>`
-  );
-
-  await sleep(30000);
-  for (let i = 0; i < 90; i++) {
-    await sleep(1200);
-    await refreshOne(appId, envName);
-    renderApps();
-
-    const s = state.status?.[appId]?.[envName];
-    const deployed = s?.pages?.commit;
-    const st = String(s?.pages?.stageStatus || "").toLowerCase();
-
-    if (deployed && shortSha(deployed) === shortSha(commit) && st === "success") {
-      break;
-    }
-  }
-  await refreshHistory();
-}
-
 async function apiHistory({ limit = 50, app = "", env = "" } = {}) {
   const qs = new URLSearchParams();
   qs.set("limit", String(limit));
   if (app) qs.set("app", app);
   if (env) qs.set("env", env);
 
-  return await apiGet(`/history?${qs.toString()}`);
+  return apiGet(`/history?${qs.toString()}`);
 }
-
 
 async function refreshHistory() {
   const data = await apiHistory({ limit: 60 });
@@ -362,22 +337,56 @@ function renderHistory(events) {
     el.className = "logItem";
     el.innerHTML = `
       <div class="row">
-        <div class="title">${e.type.toUpperCase()} ${e.app} → ${e.env}</div>
+        <div class="title">${String(e.type || "").toUpperCase()} ${e.app} → ${e.env}</div>
         <div class="tiny mono">${new Date(e.ts).toLocaleString()}</div>
       </div>
       <div class="tiny" style="margin-top:6px;">
-        commit: <span class="mono">${shortSha(e.commit || "")}</span>
-        ${e.actor ? ` • by: <span class="mono">${e.actor}</span>` : ``}
-        ${e.result?.hookOk === false ? ` • <span class="mono">hook failed</span>` : ``}
+        commit: <span class="mono">${shortSha(e.commit || e.commitSha || "")}</span>
+        ${e.actor ? ` • by: <span class="mono">${e.actor}</span>` : ""}
+        ${e.result?.hookOk === false ? ` • <span class="mono">hook failed</span>` : ""}
       </div>
     `;
     log.appendChild(el);
   }
 }
 
+async function deploy(appId, envName, commit) {
+  clearCommitError();
+
+  state.pending[appId][envName] = { commit, since: Date.now() };
+  renderApps();
+
+  logItem(`Deploy ${appId} → ${envName}`, `Requested commit <span class="mono">${shortSha(commit)}</span>`);
+
+  const resp = await apiPost("/deploy", { app: appId, env: envName, commit });
+
+  logItem(
+    "Triggered deployment",
+    `Hook called (HTTP ${resp?.trigger?.httpStatus ?? "?"}). Commit: <span class="mono">${shortSha(resp.commit)}</span>`
+  );
+
+  await sleep(30000);
+
+  for (let i = 0; i < 90; i++) {
+    await sleep(1200);
+    await refreshOne(appId, envName);
+    renderApps();
+
+    const s = state.status?.[appId]?.[envName];
+    const deployed = s?.pages?.commit;
+    const st = String(s?.pages?.stageStatus || "").toLowerCase();
+
+    if (deployed && shortSha(deployed) === shortSha(commit) && st === "success") break;
+  }
+
+  await refreshHistory();
+}
+
 function wire() {
   $("refreshAllBtn").addEventListener("click", async () => {
-    $("refreshAllBtn").disabled = true;
+    const btn = $("refreshAllBtn");
+    btn.disabled = true;
+
     try {
       await runWithRefreshing(async () => {
         await refreshAll();
@@ -385,15 +394,15 @@ function wire() {
       });
       logItem("Refreshed", "Refreshed status for all apps/environments.");
     } finally {
-      $("refreshAllBtn").disabled = false;
+      btn.disabled = false;
     }
+
     setAuthUI(await checkAuth());
   });
 
   $("loginBtn").addEventListener("click", () => {
     window.location.reload();
   });
-
 
   $("commitInput").addEventListener("input", clearCommitError);
 
@@ -412,7 +421,7 @@ function wire() {
     const envName = $("envSelect").value;
     const commit = $("commitSelect").value;
 
-    if (!commit) return alert("Please select a commit.");
+    if (!commit) return;
 
     try {
       $("deployBtn").disabled = true;
@@ -421,7 +430,7 @@ function wire() {
       state.pending[appId][envName] = null;
       renderApps();
       logItem("Deploy failed", e.message);
-      alert(`Deploy failed: ${e.message}`);
+      showCommitError(e.message);
     } finally {
       $("deployBtn").disabled = false;
     }
@@ -461,5 +470,6 @@ function wire() {
   const envName = $("envSelect").value;
   await loadCommits(envName);
   renderCommitSelect(envName);
-  checkAuth().then(setAuthUI);
+
+  setAuthUI(await checkAuth());
 })();
