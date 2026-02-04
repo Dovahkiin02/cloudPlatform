@@ -135,7 +135,7 @@ function renderApps() {
     const hd = document.createElement("div");
     hd.className = "hd";
     hd.innerHTML = `
-      <span class="title">${app.name} test</span>
+      <span class="title">${app.name}</span>
       <a class="btnlink ${canVisit ? "" : "disabled"}"
          ${canVisit ? `href="${app.prodUrl}"` : ""}
          target="_blank"
