@@ -43,6 +43,8 @@ export default {
       })
     );
 
+    const JWKS_CACHE = globalThis.__CF_ACCESS_JWKS_CACHE || (globalThis.__CF_ACCESS_JWKS_CACHE = { keys: null, ts: 0 });
+    const JWKS_TTL = 60 * 60 * 1000; // 1h cache
     let claims = null;
     try {
       claims = await requireAuth(request);
@@ -219,8 +221,13 @@ export default {
     //
     // JWT verification for Cloudflare Access
     //
-    const JWKS_CACHE = globalThis.__CF_ACCESS_JWKS_CACHE || (globalThis.__CF_ACCESS_JWKS_CACHE = { keys: null, ts: 0 });
-    const JWKS_TTL = 60 * 60 * 1000; // 1h cache
+   
+
+    function getCookie(request, name) {
+      const cookie = request.headers.get("Cookie") || "";
+      const m = cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+      return m ? decodeURIComponent(m[1]) : null;
+    }
 
     function b64uToUint8Array(b64u) {
       let b64 = b64u.replace(/-/g, "+").replace(/_/g, "/");
@@ -232,7 +239,7 @@ export default {
     }
 
     function decodeBase64Url(b64u) {
-      const b = b64u.replace(/-/g, "+").replace(/_/g, "/");
+      let b = b64u.replace(/-/g, "+").replace(/_/g, "/");
       while (b.length % 4) b += "=";
       return decodeURIComponent(
         Array.prototype.map.call(atob(b), (c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join("")
@@ -279,26 +286,31 @@ export default {
     }
 
     async function verifyAccessJwt(request, env) {
-      const jwt = request.headers.get("Cf-Access-Jwt-Assertion") || request.headers.get("cf-access-jwt-assertion");
+      const headerJwt =
+        request.headers.get("Cf-Access-Jwt-Assertion") ||
+        request.headers.get("cf-access-jwt-assertion");
+    
+      const cookieJwt = getCookie(request, "CF_Authorization");
+    
+      const jwt = headerJwt || cookieJwt;
       if (!jwt) throw new Error("missing-jwt");
-
+    
       const payload = await verifyJwtSignature(jwt);
-
+    
       const now = Math.floor(Date.now() / 1000);
       if (typeof payload.exp === "number" && payload.exp < now) throw new Error("token-expired");
-
+    
       const audExpected = env.ACCESS_AUD;
       if (!audExpected) throw new Error("Missing ACCESS_AUD in env");
       const aud = payload.aud;
       const audMatches = Array.isArray(aud) ? aud.includes(audExpected) : aud === audExpected;
       if (!audMatches) throw new Error("invalid-aud");
-
-      if (env.ACCESS_ISS) {
-        if (payload.iss !== env.ACCESS_ISS) throw new Error("invalid-iss");
-      }
-
+    
+      if (env.ACCESS_ISS && payload.iss !== env.ACCESS_ISS) throw new Error("invalid-iss");
+    
       return payload;
     }
+    
 
     function isAuthorizedClaims(payload) {
       const email = payload?.email || payload?.sub || "";
